@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>MeetMind Settings</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 520px; margin: 40px auto; padding: 0 20px; color: #1f2937; }
+    h1 { color: #4f46e5; font-size: 22px; }
+    p { line-height: 1.6; color: #4b5563; }
+    label { display: block; font-weight: 600; margin: 18px 0 6px; }
+    input[type=text], input[type=password], select { width: 100%; padding: 9px 10px; font-size: 14px; border: 1px solid #d1d5db; border-radius: 8px; }
+    .hint { font-size: 12px; color: #6b7280; margin-top: 4px; }
+    button { margin-top: 22px; padding: 10px 22px; font-size: 14px; font-weight: 600; background: #4f46e5; color: #fff; border: none; border-radius: 8px; cursor: pointer; }
+    button:hover { background: #4338ca; }
+    #saved { color: #047857; font-weight: 600; margin-left: 12px; }
+    a { color: #4f46e5; }
+  </style>
+</head>
+<body>
+  <h1>MeetMind Settings</h1>
+  <p>MeetMind sends the captured captions to an AI provider <strong>only when you press “Summarize”</strong>. Nothing is uploaded otherwise. Pick a provider and paste an API key:</p>
+
+  <label for="provider">AI provider</label>
+  <select id="provider">
+    <option value="gemini">Google Gemini (free tier available)</option>
+    <option value="openai">OpenAI</option>
+  </select>
+  <div class="hint" id="keyHint">Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a>.</div>
+
+  <label for="apiKey">API key</label>
+  <input type="password" id="apiKey" placeholder="Paste your API key here" autocomplete="off">
+  <div class="hint">Stored only in your browser (chrome.storage.local). Never sent anywhere except the provider you chose.</div>
+
+  <label for="model">Model (optional — leave blank for the default)</label>
+  <input type="text" id="model" placeholder="e.g. gemini-3.6-flash or gpt-4o-mini">
+
+  <button id="save">Save</button><span id="saved"></span>
+
+  <script src="options.js"></script>
+</body>
+</html>

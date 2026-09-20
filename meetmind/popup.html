@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="header">
+    <h1>MeetMind</h1>
+    <span id="siteBadge" class="badge">…</span>
+  </div>
+
+  <div id="status" class="status">Looking for a meeting tab…</div>
+
+  <div class="row">
+    <button id="btnSummarize" class="primary">✨ Summarize</button>
+    <button id="btnSpeak">🔊 Read aloud</button>
+    <button id="btnStopSpeak" hidden>⏹ Stop</button>
+  </div>
+  <div class="row">
+    <button id="btnCopy">⧉ Copy summary</button>
+    <button id="btnDownload">⬇ Transcript</button>
+    <button id="btnClear" class="danger">Clear</button>
+  </div>
+
+  <h2>Summary</h2>
+  <div id="summary" class="panel">Nothing summarized yet. Join a meeting with captions (CC) on, then hit <strong>Summarize</strong>.</div>
+
+  <h2>Live transcript <span id="lineCount" class="muted"></span></h2>
+  <div id="transcript" class="panel transcript"><span class="muted">Waiting for captions…</span></div>
+
+  <div class="footer">
+    <a href="#" id="openOptions">⚙ Settings &amp; API key</a>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
