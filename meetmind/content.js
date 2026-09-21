@@ -16,6 +16,7 @@
   const transcript = [];          // {speaker, text, time, t}
   const blocks = new Map();       // Element -> {speaker, seenText, delta, lastChange}
   let rootEl = null;
+  let rootKind = null;            // 'meet' | 'teams' | 'generic'
   let observer = null;
   let debounceId = null;
   let saveTimer = null;
@@ -277,15 +278,77 @@
 
   function tick() {
     if (!rootEl || !document.contains(rootEl)) {
-      rootEl = site === 'meet' ? findMeetRoot()
-             : site === 'teams' ? findTeamsRoot()
-             : findGenericRoot();
+      rootKind = null;
+      if (site === 'meet') {
+        rootEl = findMeetRoot();
+        if (rootEl) rootKind = 'meet';
+      } else if (site === 'teams') {
+        rootEl = findTeamsRoot();
+        if (rootEl) {
+          rootKind = 'teams';
+        } else {
+          // Dedicated selectors missed (client UI variant?) — fall back to the
+          // generic caption-region scan rather than capturing nothing.
+          rootEl = findGenericRoot();
+          if (rootEl) rootKind = 'generic';
+        }
+      } else {
+        rootEl = findGenericRoot();
+        if (rootEl) rootKind = 'generic';
+      }
       if (!rootEl) return;
       attachObserver();
     }
-    if (site === 'meet') processStructured(readMeetBlocks);
-    else if (site === 'teams') processStructured(readTeamsBlocks);
+    if (rootKind === 'meet') processStructured(readMeetBlocks);
+    else if (rootKind === 'teams') processStructured(readTeamsBlocks);
     else processGeneric();
+  }
+
+  /* ---------------- Diagnostics ----------------
+     The popup's Diagnose button calls this during a live meeting and shows
+     which caption selectors matched. Paste the output back to Koda if
+     captions still aren't captured — it pinpoints the exact DOM shape. */
+  const DIAG_SELECTORS = [
+    "[data-tid='closed-captions-renderer']",
+    ".closed-caption-v2-virtual-list-content",
+    '[data-tid="closed-caption-text"]',
+    '[data-tid="author"]',
+    '.fui-ChatMessageCompact',
+    '[aria-label*="caption" i]',
+    '[class*="closed-caption" i]',
+    '[class*="live-caption" i]',
+    '[role="log"]',
+    '[aria-live="polite"]',
+    '[aria-live="assertive"]'
+  ];
+
+  function diagnose() {
+    const hits = DIAG_SELECTORS.map((sel) => {
+      let n = 0, sample = '';
+      try {
+        const els = document.querySelectorAll(sel);
+        n = els.length;
+        if (n) {
+          const vis = Array.from(els).filter((e) => e.offsetParent !== null);
+          sample = clean((vis[0] || els[0]).innerText).slice(0, 140);
+          if (vis.length !== n) sample += ` [${vis.length}/${n} visible]`;
+        }
+      } catch (e) { sample = 'selector error'; }
+      return { sel, n, sample };
+    });
+    let bodyLen = 0;
+    try { bodyLen = clean(document.body.innerText).length; } catch (e) {}
+    return {
+      site,
+      adapter: rootKind,
+      page: location.hostname + location.pathname,
+      inIframe: window.top !== window.self,
+      title: (document.title || '').slice(0, 80),
+      captionsFound: !!rootEl,
+      transcriptLines: transcript.length,
+      bodyTextLen: bodyLen,
+      hits
+    };
   }
 
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -295,14 +358,19 @@
     }
     if (msg.type === 'MEETMIND_STATE') {
       finalizeAll(); // flush anything captured so far
-      const words = transcript.reduce((n, e) => n + e.text.split(/\s+/).filter(Boolean).length, 0);
+      const words = transcript.reduce((n, e) => e.text.split(/\s+/).filter(Boolean).length, 0);
       sendResponse({
         site,
+        adapter: rootKind,
         captionsFound: !!rootEl,
         lines: transcript.length,
         words,
         preview: transcript.slice(-12)
       });
+      return true;
+    }
+    if (msg.type === 'MEETMIND_DIAG') {
+      sendResponse(diagnose());
       return true;
     }
     if (msg.type === 'MEETMIND_TRANSCRIPT') {

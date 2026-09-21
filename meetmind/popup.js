@@ -35,6 +35,10 @@ async function init() {
     e.preventDefault();
     chrome.runtime.openOptionsPage();
   });
+  $('btnDiag').addEventListener('click', (e) => {
+    e.preventDefault();
+    diagnose();
+  });
 
   const stored = await chrome.storage.local.get(['meetmind_summary']);
   if (stored.meetmind_summary) {
@@ -106,12 +110,45 @@ async function refresh() {
   }
   $('siteBadge').textContent = state.site || 'meeting';
   if (!state.captionsFound) {
-    statusEl.textContent = 'On a meeting tab, but no captions found. Turn on captions (CC) in the meeting controls.';
+    const how = state.site === 'teams'
+      ? 'In Teams: click <strong>… More</strong> → <strong>Language and speech</strong> → <strong>Turn on live captions</strong>.'
+      : 'Turn on captions (CC) in the meeting controls.';
+    statusEl.innerHTML = `On a meeting tab, but no captions found. ${how}`;
   } else {
-    statusEl.textContent = `Capturing captions • ${state.lines} lines • ${state.words} words`;
+    const adapter = state.adapter ? ` • ${state.adapter} mode` : '';
+    statusEl.textContent = `Capturing captions • ${state.lines} lines • ${state.words} words${adapter}`;
   }
   $('lineCount').textContent = state.lines ? `(${state.lines})` : '';
   renderPreview(state.preview || []);
+}
+
+/* Diagnose: ask the meeting tab what its caption DOM looks like, so a
+   missed capture can be debugged precisely. */
+async function diagnose() {
+  const box = $('summary');
+  box.innerHTML = '<p class="muted">🔍 Scanning the meeting page…</p>';
+  const tab = await getMeetingTab();
+  if (!tab) {
+    box.innerHTML = '<p>Open a meeting tab first, then run Diagnose.</p>';
+    return;
+  }
+  const d = await sendToTab(tab, { type: 'MEETMIND_DIAG' });
+  if (!d) {
+    box.innerHTML = '<p>Could not reach the meeting tab — reload the meeting page and try again.</p>';
+    return;
+  }
+  const rows = d.hits.map((h) =>
+    `<tr><td><code>${esc(h.sel)}</code></td><td>${h.n}</td><td>${esc(h.sample)}</td></tr>`
+  ).join('');
+  box.innerHTML =
+    `<h3>Diagnosis</h3>` +
+    `<p>Site: <strong>${esc(d.site)}</strong> · Adapter: <strong>${esc(d.adapter || 'none')}</strong> · ` +
+    `Captions found: <strong>${d.captionsFound ? 'yes' : 'no'}</strong> · ` +
+    `Transcript lines: <strong>${d.transcriptLines}</strong></p>` +
+    `<p class="muted">Page: ${esc(d.page)}${d.inIframe ? ' (inside a frame)' : ''}</p>` +
+    `<table class="diag"><tr><th>Selector</th><th>Hits</th><th>Sample text</th></tr>${rows}</table>` +
+    `<p class="muted">If this still shows no captions, send me a screenshot of this panel — ` +
+    `it tells me exactly how your Teams renders captions so I can fix the capture.</p>`;
 }
 
 function transcriptToText(transcript) {
