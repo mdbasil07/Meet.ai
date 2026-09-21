@@ -35,7 +35,9 @@ Your key is stored only in your browser. Captions are sent to the AI provider
 
 ## Use it in a meeting
 
-1. Join a Google Meet (also works with Zoom / Teams web, best-effort).
+1. Join a Google Meet, or a Zoom / Teams meeting **in the browser**
+   (Chrome or Edge) at zoom.us / teams.microsoft.com — the extension can't
+   run inside the Zoom or Teams *desktop apps*, they're separate programs.
 2. Turn **captions (CC)** on in the meeting controls — the extension can only
    read captions that are visible.
 3. Click the MeetMind icon anytime:

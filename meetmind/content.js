@@ -1,6 +1,9 @@
 /* MeetMind — content script: captures live meeting captions from the page DOM.
-   Google Meet is supported natively (verified caption selectors);
-   Zoom / Teams web are covered by a generic caption-region fallback. */
+   Google Meet and Teams web have dedicated adapters (verified caption
+   selectors); Zoom web is covered by a generic caption-region fallback.
+   Note: the Teams *desktop app* is a separate program — this extension only
+   runs in the browser, so Teams meetings must be joined at
+   teams.microsoft.com / teams.live.com in Chrome or Edge. */
 
 (() => {
   'use strict';
@@ -68,9 +71,67 @@
     return out;
   }
 
-  function processMeet() {
+  /* ---------------- Microsoft Teams web adapter ----------------
+     Verified against Teams web caption DOM: the caption virtual list
+     renders one [data-tid="closed-caption-text"] element per utterance;
+     its text grows as speech is recognized and finalizes when the next
+     utterance appears. The speaker name sits in [data-tid="author"],
+     usually inside the same .fui-ChatMessageCompact block. */
+  const TEAMS_ROOT_SELECTORS = [
+    "[data-tid='closed-captions-renderer']",
+    ".closed-caption-v2-virtual-list-content"
+  ];
+  const TEAMS_TEXT_SELECTOR = '[data-tid="closed-caption-text"]';
+  const TEAMS_AUTHOR_SELECTOR = '[data-tid="author"]';
+
+  function findTeamsRoot() {
+    for (const sel of TEAMS_ROOT_SELECTORS) {
+      const el = document.querySelector(sel);
+      if (el && clean(el.innerText).length > 2) return el;
+    }
+    // Fallback: climb from any caption text node to a container holding several.
+    const t = document.querySelector(TEAMS_TEXT_SELECTOR);
+    if (t) {
+      let p = t.parentElement;
+      for (let i = 0; i < 6 && p; i++, p = p.parentElement) {
+        if (p.querySelectorAll(TEAMS_TEXT_SELECTOR).length > 1) return p;
+      }
+      return t.parentElement;
+    }
+    return null;
+  }
+
+  function findTeamsSpeaker(tx, root) {
+    const block = (tx.closest && tx.closest('.fui-ChatMessageCompact')) || tx.parentElement;
+    if (block) {
+      const a = block.querySelector(TEAMS_AUTHOR_SELECTOR);
+      if (a && clean(a.innerText)) return clean(a.innerText);
+    }
+    let p = tx.parentElement;
+    for (let i = 0; i < 3 && p && p !== root.parentElement; i++, p = p.parentElement) {
+      const a = p.querySelector(TEAMS_AUTHOR_SELECTOR);
+      if (a && clean(a.innerText)) return clean(a.innerText);
+    }
+    return '';
+  }
+
+  function readTeamsBlocks(root) {
+    const out = [];
+    root.querySelectorAll(TEAMS_TEXT_SELECTOR).forEach((tx) => {
+      const text = clean(tx.innerText);
+      if (!text) return;
+      out.push({ el: tx, speaker: findTeamsSpeaker(tx, root), text });
+    });
+    return out;
+  }
+
+  /* ---------------- Structured adapter (Meet / Teams) ----------------
+     Both render one element per utterance whose text grows (interim) and
+     then finalizes; the logic below is shared. */
+
+  function processStructured(readBlocks) {
     const now = Date.now();
-    const current = readMeetBlocks(rootEl);
+    const current = readBlocks(rootEl);
     const seen = new Set(current.map((c) => c.el));
     const hasNew = current.some((c) => !blocks.has(c.el));
 
@@ -216,11 +277,14 @@
 
   function tick() {
     if (!rootEl || !document.contains(rootEl)) {
-      rootEl = site === 'meet' ? findMeetRoot() : findGenericRoot();
+      rootEl = site === 'meet' ? findMeetRoot()
+             : site === 'teams' ? findTeamsRoot()
+             : findGenericRoot();
       if (!rootEl) return;
       attachObserver();
     }
-    if (site === 'meet') processMeet();
+    if (site === 'meet') processStructured(readMeetBlocks);
+    else if (site === 'teams') processStructured(readTeamsBlocks);
     else processGeneric();
   }
 
